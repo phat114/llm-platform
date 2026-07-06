@@ -1,0 +1,6 @@
+# Ép LF cho file chạy trên Linux (tránh lỗi CRLF khi checkout từ Windows)
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+Makefile    text eol=lf
+.env.example text eol=lf

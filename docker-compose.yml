@@ -1,0 +1,70 @@
+# LLM Platform — vLLM (serving) + LiteLLM (gateway) + Open WebUI (chat)
+# Chạy trên server Ubuntu có GPU NVIDIA + nvidia-container-toolkit.
+# Khởi động: bash scripts/start.sh  (hoặc: make up)
+
+services:
+  # ---------- Layer 1: Serving engine ----------
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: vllm
+    restart: unless-stopped
+    # Entrypoint tự lắp ráp tham số từ .env (xử lý quantization tùy chọn)
+    entrypoint: ["/bin/bash", "/scripts/vllm-entrypoint.sh"]
+    env_file: .env
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - ./scripts:/scripts:ro
+      - hf-cache:/root/.cache/huggingface   # cache model, tải 1 lần
+    ports:
+      - "${VLLM_PORT:-8000}:8000"
+    ipc: host                                # cần cho tensor-parallel
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 900s                     # lần đầu tải model có thể lâu
+
+  # ---------- Layer 2: Gateway / Platform ----------
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: litellm
+    restart: unless-stopped
+    depends_on:
+      vllm:
+        condition: service_healthy
+    env_file: .env
+    volumes:
+      - ./config/litellm.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    ports:
+      - "${LITELLM_PORT:-4000}:4000"
+
+  # ---------- Layer 3: Chat UI ----------
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+    depends_on:
+      - litellm
+    environment:
+      OPENAI_API_BASE_URL: http://litellm:4000/v1
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY}
+      WEBUI_AUTH: ${WEBUI_AUTH:-true}
+    volumes:
+      - open-webui:/app/backend/data
+    ports:
+      - "${WEBUI_PORT:-3000}:8080"
+
+volumes:
+  hf-cache:
+  open-webui:

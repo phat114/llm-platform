@@ -1,0 +1,41 @@
+# LiteLLM gateway — expose 1 endpoint OpenAI-compatible cho mọi client.
+# Thêm model mới = thêm 1 mục trong model_list.
+
+model_list:
+  # ---- Local: chạy trên RTX 3060 qua vLLM (nhanh, miễn phí, việc nhẹ) ----
+  - model_name: brain
+    litellm_params:
+      model: openai/brain                 # trùng SERVED_MODEL_NAME trong .env
+      api_base: http://vllm:8000/v1
+      api_key: os.environ/VLLM_API_KEY
+
+  # Alias tương thích: app nào hardcode "gpt-4o" vẫn trúng model local
+  - model_name: gpt-4o
+    litellm_params:
+      model: openai/brain
+      api_base: http://vllm:8000/v1
+      api_key: os.environ/VLLM_API_KEY
+
+  # ---- Hybrid: model MẠNH qua API ngoài, cho task khó/đa bước ----
+  # Bật bằng cách điền ANTHROPIC_API_KEY trong .env. Client gọi model "brain-pro".
+  - model_name: brain-pro
+    litellm_params:
+      model: anthropic/claude-sonnet-5    # đổi sang claude-opus-4-8 nếu cần mạnh hơn
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # (tùy chọn) OpenAI — bỏ comment nếu muốn dùng
+  # - model_name: brain-pro-openai
+  #   litellm_params:
+  #     model: openai/gpt-4o
+  #     api_key: os.environ/OPENAI_API_KEY
+
+litellm_settings:
+  drop_params: true                       # bỏ param model local không hỗ trợ
+  num_retries: 1
+  # Tự fallback khi local "brain" lỗi (OOM/timeout) → dùng brain-pro.
+  # Chỉ bỏ comment SAU KHI đã điền ANTHROPIC_API_KEY, nếu không sẽ lỗi 401.
+  # fallbacks: [{"brain": ["brain-pro"]}]
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # database_url: os.environ/DATABASE_URL  # bật nếu muốn lưu key/usage lâu dài

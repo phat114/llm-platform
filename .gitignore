@@ -1,0 +1,8 @@
+# Biến môi trường thật (chứa key) — KHÔNG commit
+.env
+
+# Logs & cache
+*.log
+__pycache__/
+*.pyc
+.venv/
