@@ -1,0 +1,2 @@
+# Thư mục chứa LoRA adapter đã train (train_qlora.py --> output_dir).
+# Mount vào vLLM: ./training/adapters:/adapters:ro. Adapter thật KHÔNG commit (xem .gitignore nếu cần).

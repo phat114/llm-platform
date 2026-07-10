@@ -1,0 +1,39 @@
+# Cấu hình train MỘT adapter QLoRA. Copy file này cho mỗi skill cần fine-tune.
+# Chạy: python train_qlora.py --config configs/extract.yaml
+
+adapter_name: extract                 # phục vụ dưới tên model "brain-extract" (litellm)
+base_model: Qwen/Qwen2.5-Coder-7B-Instruct   # BASE bf16 — TUYỆT ĐỐI KHÔNG dùng bản *-AWQ để train
+output_dir: ./adapters/extract        # mount thư mục này vào vLLM qua --lora-modules
+
+# ---- LoRA / QLoRA ----
+lora_r: 32
+lora_alpha: 64                        # ~= 2*r
+lora_dropout: 0.05
+target_modules:                       # all-linear cho chất lượng tốt nhất
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+load_in_4bit: true                    # QLoRA (NF4) — vừa 12GB; đặt false nếu train LoRA bf16 trên server
+
+# ---- Train ----
+max_seq_length: 2048
+per_device_batch_size: 1
+grad_accum: 8                         # batch hiệu dụng = 8
+learning_rate: 2.0e-4
+epochs: 3                             # 1–3; theo dõi val loss chống overfit
+warmup_ratio: 0.03
+weight_decay: 0.01
+seed: 3407                            # đổi seed để lấy noise band (>=3 seed) khi so sánh
+train_on_responses_only: true        # mask system/user, chỉ tính loss phần assistant
+logging_steps: 5
+
+# ---- Data ----
+# Trỏ tới file ĐÃ TRỘN từ prepare_data.py (train.jsonl). task_filter=null lấy hết;
+# đặt "extract" nếu file trộn chứa nhiều task mà chỉ muốn train riêng adapter này.
+data_files:
+  - ./data/mixed/train.jsonl
+task_filter: null

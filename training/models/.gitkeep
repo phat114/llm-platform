@@ -1,0 +1,2 @@
+# Thư mục chứa model đã merge/re-quantize (đường B: merge_lora.py --> --out).
+# Mount vào vLLM: ./training/models:/models:ro. Weights thật KHÔNG commit.

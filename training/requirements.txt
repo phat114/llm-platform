@@ -1,0 +1,20 @@
+# Deps TRAIN (chạy trên GPU box, KHÔNG phải máy dev/serving).
+# Cài trong venv riêng: pip install -r training/requirements.txt
+#
+# Unsloth kéo theo torch/transformers/trl/peft/bitsandbytes bản tương thích.
+# Chọn build torch khớp CUDA của server (xem hướng dẫn Unsloth) nếu cần.
+unsloth
+trl>=0.9.6
+peft>=0.12.0
+transformers>=4.44.0
+datasets>=2.20.0
+bitsandbytes>=0.43.0
+accelerate>=0.33.0
+pyyaml>=6.0
+
+# Eval matrix chỉ cần client OpenAI (gọi gateway) — nhẹ:
+openai>=1.40.0
+
+# (Tùy chọn) re-quantize sau merge:
+# autoawq
+# llmcompressor

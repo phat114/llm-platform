@@ -16,6 +16,21 @@ model_list:
       api_base: http://vllm:8000/v1
       api_key: os.environ/VLLM_API_KEY
 
+  # ---- Multi-LoRA (Bước 2): mỗi adapter đã train = 1 model_name ----
+  # Bỏ comment SAU KHI đã train adapter + bật --enable-lora/--lora-modules trong VLLM_EXTRA_ARGS.
+  # 3 chuỗi PHẢI khớp: --lora-modules extract=/adapters/extract  ↔  model: openai/extract  ↔
+  # model_name: brain-extract (rồi đặt model="brain-extract" cho skill tương ứng ở agents/skills.py).
+  # - model_name: brain-extract
+  #   litellm_params:
+  #     model: openai/extract
+  #     api_base: http://vllm:8000/v1
+  #     api_key: os.environ/VLLM_API_KEY
+  # - model_name: brain-review
+  #   litellm_params:
+  #     model: openai/review
+  #     api_base: http://vllm:8000/v1
+  #     api_key: os.environ/VLLM_API_KEY
+
   # ---- Hybrid: model MẠNH qua API ngoài, cho task khó/đa bước ----
   # Bật bằng cách điền ANTHROPIC_API_KEY trong .env. Client gọi model "brain-pro".
   - model_name: brain-pro

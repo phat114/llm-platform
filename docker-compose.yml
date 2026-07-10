@@ -17,6 +17,8 @@ services:
     volumes:
       - ./scripts:/scripts:ro
       - hf-cache:/root/.cache/huggingface   # cache model, tải 1 lần
+      - ./training/adapters:/adapters:ro    # LoRA adapter cho multi-LoRA serving (Bước 2)
+      - ./training/models:/models:ro        # (tùy chọn) model đã merge/re-quant (đường B)
     ports:
       - "${VLLM_PORT:-8000}:8000"
     ipc: host                                # cần cho tensor-parallel
