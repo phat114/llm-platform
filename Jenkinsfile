@@ -25,6 +25,21 @@ pipeline {
       steps { checkout scm }
     }
 
+    stage('Test') {
+      // Test logic thuần Python (data-mix + eval gate + config loader). KHÔNG cần GPU/torch.
+      // Chạy MỌI nhánh (để PR cũng được kiểm), trong venv throwaway. Test router/agents cần
+      // openai-agents nên tự SKIP ở đây (deps nhẹ) — chạy được trong venv của agents/.
+      steps {
+        sh '''
+          set -euo pipefail
+          python3 -m venv --clear /tmp/llm-test-venv
+          . /tmp/llm-test-venv/bin/activate
+          pip install -q --disable-pip-version-check pytest pyyaml
+          pytest tests/ -q
+        '''
+      }
+    }
+
     stage('Deploy') {
       when { branch 'main' }
       steps {
@@ -43,6 +58,11 @@ pipeline {
             echo "    # (tùy chọn) dò model 1 lần: cd $CONFIG_DIR && bash scripts/detect-gpu.sh"
             exit 1
           fi
+
+          # 1b. Thư mục adapter/model do HOST quản lý (artifact train — KHÔNG commit/ghi đè), chỉ
+          #     đảm bảo TỒN TẠI để bind-mount trong docker-compose.yml không trỏ vào path rỗng.
+          #     Adapter thật do pipeline train (training/) đặt vào đây trên host khi bật multi-LoRA.
+          install -d "$CONFIG_DIR/training/adapters" "$CONFIG_DIR/training/models"
 
           # 2. Đồng bộ file version-controlled cần lúc runtime xuống $CONFIG_DIR. .env KHÔNG đụng tới.
           install -m 644 docker-compose.yml "$CONFIG_DIR/docker-compose.yml"
