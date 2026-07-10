@@ -1,21 +1,31 @@
-"""Agent build tối giản: vòng lặp tool-calling trỏ vào LLM Platform gateway.
+"""Agent build trên OpenAI Agents SDK, trỏ vào LLM Platform gateway.
+
+Khác bản cũ: vòng lặp tool-calling tay được thay bằng Runner của SDK
+(tự điều phối tool, tự retry cấu trúc). Logic tool/WORKDIR ở tools.py giữ nguyên.
 
 Ví dụ:
     export LITELLM_MASTER_KEY=sk-...           # trùng .env của platform
+    export GATEWAY_URL=http://SERVER_IP:4000/v1
     export AGENT_WORKDIR=/duong/dan/project    # thư mục agent được phép thao tác
     python agent.py "Đọc app.py, thêm test cho hàm parse_date rồi chạy pytest"
 
 Cờ:
     --model brain       model dùng (brain = local 3060, brain-pro = API ngoài)
-    --max-steps 25      số bước tối đa
+    --max-steps 25      trần số lượt (turn) của agent
     --auto              chạy shell KHÔNG hỏi xác nhận (dùng khi tin tưởng task)
 """
 from __future__ import annotations
 import argparse
-import json
 import os
 
-from openai import OpenAI
+from openai import AsyncOpenAI
+from agents import (
+    Agent,
+    ModelSettings,
+    OpenAIChatCompletionsModel,
+    Runner,
+    set_tracing_disabled,
+)
 
 import tools
 
@@ -28,15 +38,6 @@ list_dir, run_shell. Hoàn thành yêu cầu theo các bước nhỏ:
 Trả lời bằng tiếng Việt."""
 
 
-def _tool_result(call_id: str, content: str) -> dict:
-    return {"role": "tool", "tool_call_id": call_id, "content": content}
-
-
-def _short(d: dict, n: int = 140) -> str:
-    s = json.dumps(d, ensure_ascii=False)
-    return s if len(s) <= n else s[:n] + "…"
-
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("task", help="Yêu cầu cho agent")
@@ -46,58 +47,30 @@ def main() -> None:
                     help="Chạy shell không cần xác nhận")
     args = ap.parse_args()
 
-    client = OpenAI(
+    # Self-host: không gửi trace ra OpenAI (tránh cảnh báo thiếu OPENAI_API_KEY).
+    set_tracing_disabled(True)
+
+    # --auto → tool run_shell không hỏi xác nhận nữa
+    tools.REQUIRE_SHELL_APPROVAL = not args.auto
+
+    # Client trỏ vào gateway của platform. Dùng Chat Completions (không phải
+    # Responses API) vì endpoint là OpenAI-compatible qua LiteLLM/vLLM.
+    client = AsyncOpenAI(
         base_url=os.environ.get("GATEWAY_URL", "http://localhost:4000/v1"),
         api_key=os.environ.get("LITELLM_MASTER_KEY", "sk-change-me-please"),
     )
 
+    agent = Agent(
+        name="builder",
+        instructions=SYSTEM,
+        model=OpenAIChatCompletionsModel(model=args.model, openai_client=client),
+        model_settings=ModelSettings(temperature=0.2),
+        tools=tools.TOOLS,
+    )
+
     print(f"WORKDIR = {tools.WORKDIR}")
-    messages = [
-        {"role": "system", "content": SYSTEM},
-        {"role": "user", "content": args.task},
-    ]
-
-    for step in range(1, args.max_steps + 1):
-        resp = client.chat.completions.create(
-            model=args.model, messages=messages,
-            tools=tools.TOOLS, tool_choice="auto", temperature=0.2,
-        )
-        msg = resp.choices[0].message
-        messages.append(msg.model_dump(exclude_none=True))
-
-        # Không gọi tool nữa → agent coi như xong
-        if not msg.tool_calls:
-            print(f"\n=== XONG (bước {step}) ===\n{msg.content}")
-            return
-
-        for call in msg.tool_calls:
-            name = call.function.name
-            try:
-                fn_args = json.loads(call.function.arguments or "{}")
-            except json.JSONDecodeError:
-                fn_args = {}
-            print(f"\n[bước {step}] → {name}({_short(fn_args)})")
-
-            # Cổng an toàn: hỏi trước khi chạy shell (trừ khi --auto)
-            if name == "run_shell" and not args.auto:
-                cmd = fn_args.get("command", "")
-                if input(f"    chạy? `{cmd}` (y/N) ").strip().lower() != "y":
-                    messages.append(_tool_result(call.id, "Người dùng từ chối chạy lệnh."))
-                    print("    (bỏ qua)")
-                    continue
-
-            fn = tools.DISPATCH.get(name)
-            if fn is None:
-                result = f"LỖI: tool không tồn tại: {name}"
-            else:
-                try:
-                    result = str(fn(**fn_args))
-                except Exception as e:  # noqa: BLE001 - báo lỗi lại cho model tự sửa
-                    result = f"LỖI: {e}"
-            print(f"    ← {result[:300]}")
-            messages.append(_tool_result(call.id, result))
-
-    print("\n!! Đạt giới hạn bước, dừng.")
+    result = Runner.run_sync(agent, args.task, max_turns=args.max_steps)
+    print(f"\n=== XONG ===\n{result.final_output}")
 
 
 if __name__ == "__main__":

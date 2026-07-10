@@ -1,7 +1,9 @@
 # Agent build — Phase 4
 
-Vòng lặp tool-calling tối giản, dùng chính gateway của platform làm "bộ não".
-Không phụ thuộc framework nặng — dễ đọc, dễ sửa theo workflow của bạn.
+Agent tool-calling gọn, dùng **OpenAI Agents SDK** và trỏ vào gateway của platform
+làm "bộ não". SDK lo vòng lặp điều phối tool + retry; ta chỉ khai báo tool bằng
+hàm Python — **schema function-calling tự sinh từ type hint + docstring** (không
+còn JSON tay). Logic an toàn (khóa trong `AGENT_WORKDIR`) giữ nguyên.
 
 ## Tool có sẵn (`tools.py`)
 | Tool | Việc |

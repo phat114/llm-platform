@@ -1,4 +1,7 @@
-"""Tool cho agent build. Mỗi tool = schema (OpenAI format) + hàm thực thi.
+"""Tool cho agent build — dùng OpenAI Agents SDK.
+
+Khác bản cũ: schema function-calling được SDK TỰ SINH từ type hint + docstring
+(không còn khai báo JSON tay). Hàm an toàn (_safe_path, WORKDIR) giữ nguyên.
 
 An toàn: mọi thao tác file/shell bị giới hạn trong AGENT_WORKDIR.
 """
@@ -7,8 +10,17 @@ import os
 import pathlib
 import subprocess
 
+from agents import function_tool
+
 # Mọi thao tác bị khóa trong thư mục này (mặc định: thư mục hiện tại)
 WORKDIR = pathlib.Path(os.environ.get("AGENT_WORKDIR", ".")).resolve()
+
+# Hỏi xác nhận trước khi chạy shell. agent.py đặt False khi có cờ --auto.
+REQUIRE_SHELL_APPROVAL = True
+
+# Giới hạn an toàn nội bộ — KHÔNG expose cho model (model không nên chỉnh).
+MAX_READ_BYTES = 100_000
+SHELL_TIMEOUT = 120
 
 
 def _safe_path(rel: str) -> pathlib.Path:
@@ -19,19 +31,41 @@ def _safe_path(rel: str) -> pathlib.Path:
     return p
 
 
-def read_file(path: str, max_bytes: int = 100_000) -> str:
+@function_tool
+def read_file(path: str) -> str:
+    """Đọc nội dung một file (đường dẫn tương đối WORKDIR).
+
+    Args:
+        path: Đường dẫn file, tương đối so với WORKDIR.
+    """
+    print(f"  → read_file({path})")
     data = _safe_path(path).read_text(encoding="utf-8", errors="replace")
-    return data[:max_bytes]
+    return data[:MAX_READ_BYTES]
 
 
+@function_tool
 def write_file(path: str, content: str) -> str:
+    """Ghi/đè nội dung một file. Tự tạo thư mục cha nếu cần.
+
+    Args:
+        path: Đường dẫn file, tương đối so với WORKDIR.
+        content: Nội dung ghi vào file.
+    """
+    print(f"  → write_file({path})")
     p = _safe_path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding="utf-8")
     return f"Đã ghi {len(content)} ký tự vào {path}"
 
 
+@function_tool
 def list_dir(path: str = ".") -> str:
+    """Liệt kê file/thư mục trong một đường dẫn.
+
+    Args:
+        path: Đường dẫn thư mục, tương đối so với WORKDIR (mặc định gốc).
+    """
+    print(f"  → list_dir({path})")
     p = _safe_path(path)
     items = [
         f"{'d' if e.is_dir() else 'f'} {e.relative_to(WORKDIR)}"
@@ -40,10 +74,22 @@ def list_dir(path: str = ".") -> str:
     return "\n".join(items) or "(trống)"
 
 
-def run_shell(command: str, timeout: int = 120) -> str:
+@function_tool
+def run_shell(command: str) -> str:
+    """Chạy lệnh shell trong WORKDIR (build, test, git, ...).
+
+    Args:
+        command: Lệnh shell cần chạy.
+    """
+    print(f"  → run_shell({command!r})")
+    # Cổng an toàn: hỏi trước khi chạy shell (trừ khi agent.py bật --auto)
+    if REQUIRE_SHELL_APPROVAL:
+        if input(f"    chạy? `{command}` (y/N) ").strip().lower() != "y":
+            print("    (bỏ qua)")
+            return "Người dùng từ chối chạy lệnh."
     proc = subprocess.run(
         command, shell=True, cwd=str(WORKDIR),
-        capture_output=True, text=True, timeout=timeout,
+        capture_output=True, text=True, timeout=SHELL_TIMEOUT,
     )
     return (
         f"exit={proc.returncode}\n"
@@ -52,34 +98,5 @@ def run_shell(command: str, timeout: int = 120) -> str:
     )
 
 
-# ---- Schema gửi cho model (chuẩn OpenAI function calling) ----
-TOOLS = [
-    {"type": "function", "function": {
-        "name": "read_file",
-        "description": "Đọc nội dung một file (đường dẫn tương đối WORKDIR).",
-        "parameters": {"type": "object", "properties": {
-            "path": {"type": "string"}}, "required": ["path"]}}},
-    {"type": "function", "function": {
-        "name": "write_file",
-        "description": "Ghi/đè nội dung một file. Tự tạo thư mục cha nếu cần.",
-        "parameters": {"type": "object", "properties": {
-            "path": {"type": "string"},
-            "content": {"type": "string"}}, "required": ["path", "content"]}}},
-    {"type": "function", "function": {
-        "name": "list_dir",
-        "description": "Liệt kê file/thư mục trong một đường dẫn.",
-        "parameters": {"type": "object", "properties": {
-            "path": {"type": "string"}}, "required": []}}},
-    {"type": "function", "function": {
-        "name": "run_shell",
-        "description": "Chạy lệnh shell trong WORKDIR (build, test, git, ...).",
-        "parameters": {"type": "object", "properties": {
-            "command": {"type": "string"}}, "required": ["command"]}}},
-]
-
-DISPATCH = {
-    "read_file": read_file,
-    "write_file": write_file,
-    "list_dir": list_dir,
-    "run_shell": run_shell,
-}
+# SDK nhận trực tiếp các FunctionTool này; không cần TOOLS/DISPATCH tay nữa.
+TOOLS = [read_file, write_file, list_dir, run_shell]
