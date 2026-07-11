@@ -28,9 +28,16 @@ task ──► router.choose_skill (brain, structured output)
 
 Xem chi tiết: `python agent.py --list-skills`.
 
-> **RAG collection**: mỗi skill có field `collection` (vd `build`/`review` = `codebase`) — hiện là
-> **hook cho Bước 2**, retrieval **chưa được wire**. Nó chỉ thể hiện đúng hình dạng registry
-> (persona + tool + collection). Sẽ bật khi thêm embedding model + vector store.
+> **RAG collection** (`rag.py`): skill có `collection` (vd `build`/`review` = `codebase`) được gắn
+> thêm tool `search_codebase` để **truy hồi** code liên quan thay vì mò `list_dir`/`read_file`.
+> Embedding chạy **CPU** (FastEmbed) + vector store **Chroma** — không tốn VRAM, không thêm container.
+> Cần cài deps (`pip install fastembed chromadb`) và **index một lần**:
+> ```bash
+> export AGENT_WORKDIR=/path/to/du_an
+> python rag.py index          # quét WORKDIR → chunk → embed → Chroma (.rag/)
+> python rag.py search "..."    # thử truy hồi
+> ```
+> Chưa index thì tool báo rõ và agent vẫn chạy bình thường với các tool file.
 
 ## Tool có sẵn (`tools.py`)
 | Tool | Việc |

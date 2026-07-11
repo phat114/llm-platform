@@ -21,6 +21,7 @@ REQUIRE_SHELL_APPROVAL = True
 # Giới hạn an toàn nội bộ — KHÔNG expose cho model (model không nên chỉnh).
 MAX_READ_BYTES = 100_000
 SHELL_TIMEOUT = 120
+RAG_TOP_K = 5
 
 
 def _safe_path(rel: str) -> pathlib.Path:
@@ -98,5 +99,25 @@ def run_shell(command: str) -> str:
     )
 
 
-# SDK nhận trực tiếp các FunctionTool này; không cần TOOLS/DISPATCH tay nữa.
+@function_tool
+def search_codebase(query: str) -> str:
+    """Tìm đoạn code/tài liệu liên quan trong WORKDIR bằng RAG (embedding + vector search).
+    Dùng để ĐỊNH VỊ nhanh trước khi read_file — thay vì mò list_dir/read_file.
+
+    Args:
+        query: Nội dung cần tìm (mô tả chức năng, tên hàm, khái niệm...).
+    """
+    print(f"  → search_codebase({query!r})")
+    try:
+        import rag
+    except ImportError:
+        return ("RAG chưa cài. Cần: pip install fastembed chromadb, rồi index: python rag.py index")
+    hits = rag.search(query, RAG_TOP_K)
+    if not hits:
+        return "(không tìm thấy — đã index chưa? chạy: python rag.py index)"
+    return "\n\n".join(
+        f"[{h['path']}] score={h['score']}\n{h['snippet']}" for h in hits)
+
+
+# SDK nhận trực tiếp các FunctionTool cơ bản; search_codebase gắn theo skill (skills.py).
 TOOLS = [read_file, write_file, list_dir, run_shell]

@@ -41,7 +41,7 @@ def _print_skills() -> None:
     print("Skills khả dụng:")
     for s in SKILLS.values():
         tnames = ", ".join(getattr(t, "name", "?") for t in s.tools) or "(không tool)"
-        rag = f", RAG={s.collection}(chưa bật)" if s.collection else ""
+        rag = f", RAG={s.collection}(cần: python rag.py index)" if s.collection else ""
         print(f"  - {s.name:8s} [model={s.model}, max_turns={s.max_turns}{rag}]")
         print(f"      tools: {tnames}")
         print(f"      {s.description}")

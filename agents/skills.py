@@ -55,7 +55,7 @@ SKILLS: dict[str, Skill] = {
         description=("Tự động hoá lập trình nhiều bước: đọc/sửa file, chạy build/test/git "
                      "trong dự án. Chọn khi yêu cầu ĐỘNG TỚI FILE hoặc CẦN CHẠY LỆNH."),
         persona=BUILD_PERSONA,
-        tools=tools.TOOLS,                 # đủ 4 tool (read/write/list/shell)
+        tools=tools.TOOLS + [tools.search_codebase],   # 4 tool + RAG (nếu đã index)
         model="brain",
         max_turns=20,
         collection="codebase",             # (Bước 2) dành cho RAG — chưa bật
@@ -65,7 +65,7 @@ SKILLS: dict[str, Skill] = {
         description=("Rà soát/review code sâu: tìm lỗi, bảo mật, thiết kế. CHỈ ĐỌC, không sửa. "
                      "Chọn khi cần nhận xét/đánh giá/kiểm tra code có vấn đề gì."),
         persona=REVIEW_PERSONA,
-        tools=[tools.read_file, tools.list_dir],   # read-only
+        tools=[tools.read_file, tools.list_dir, tools.search_codebase],   # read-only + RAG
         model="brain-pro",                 # review sâu → route Claude (cần ANTHROPIC_API_KEY)
         max_turns=12,
         collection="codebase",

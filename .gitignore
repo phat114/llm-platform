@@ -6,3 +6,14 @@
 __pycache__/
 *.pyc
 .venv/
+
+# RAG index (embedding/vector store — sinh lại được bằng: python rag.py index)
+.rag/
+
+# Artifact training (weights/adapter/data lớn — KHÔNG commit; chỉ giữ .gitkeep)
+training/adapters/*
+!training/adapters/.gitkeep
+training/models/*
+!training/models/.gitkeep
+training/data/mixed/
+training/data/distilled.jsonl

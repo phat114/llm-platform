@@ -1,2 +1,7 @@
 openai>=1.40.0
 openai-agents>=0.1.0
+
+# RAG codebase (tùy chọn — chỉ cần khi dùng tool search_codebase): embedding CPU + vector store.
+# Không tốn VRAM (FastEmbed chạy ONNX/CPU), không cần thêm container. Index: python rag.py index
+fastembed>=0.3.0
+chromadb>=0.5.0
