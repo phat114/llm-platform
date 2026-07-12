@@ -53,4 +53,8 @@ litellm_settings:
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
-  # database_url: os.environ/DATABASE_URL  # bật nếu muốn lưu key/usage lâu dài
+  # Bật DB → admin UI (:4000/ui) login được + phát virtual key + log spend.
+  # Không có dòng này thì UI báo "Authentication Error, Not connected to DB!".
+  database_url: os.environ/DATABASE_URL
+  # Cho phép thêm/sửa model ngay trên UI (lưu vào DB, không cần sửa file này rồi restart).
+  store_model_in_db: true

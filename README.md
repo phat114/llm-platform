@@ -6,13 +6,18 @@ Bộ não LLM tự host bằng **vLLM**, expose một endpoint **OpenAI-compatib
 Client / App / Agent build
         │  (OpenAI API)
    ┌────▼─────┐   LiteLLM gateway  — auth, key, log, routing
-   │ litellm  │
-   └────┬─────┘
+   │ litellm  │───┐
+   └────┬─────┘   │  ┌──────────┐   Postgres — virtual key + spend + admin UI (:4000/ui)
+        │         └──│ postgres │
+        │            └──────────┘
    ┌────▼─────┐   vLLM             — chạy model trên GPU, tool-calling
    │  vllm    │
    └──────────┘
    Open WebUI  — giao diện chat
 ```
+
+> **Chi tiết kiến trúc + cạm bẫy khi chạy: [docs/architecture.md](docs/architecture.md).**
+> Đọc trước khi sửa `docker-compose.yml` / `config/litellm.yaml` / `.env`, hoặc khi `vllm` báo Error.
 
 ## Yêu cầu (trên server GPU)
 - Ubuntu + GPU NVIDIA
@@ -33,6 +38,17 @@ make health               # test khi đã sẵn sàng
 ```
 - Chat UI: http://SERVER_IP:3000
 - API gateway: http://SERVER_IP:4000/v1  (Bearer = `LITELLM_MASTER_KEY`)
+
+## Truy cập từ LAN
+Chat UI (`:3000`) và gateway (`:4000`) bind `0.0.0.0` → máy khác trong LAN vào được.
+vLLM (`:8000`) giữ localhost-only — LAN đi qua gateway. Đặt `LAN_HOST=<hostname>.local`
+trong `.env` để dùng **hostname cố định** thay IP DHCP hay đổi.
+
+Windows còn phải mở firewall (chạy bằng quyền Administrator):
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\lan-firewall.ps1
+```
+Chi tiết + xử lý sự cố: [docs/lan-access.md](docs/lan-access.md).
 
 ## Auto chọn model
 `scripts/detect-gpu.sh` dò VRAM và ghi `MODEL`, `QUANTIZATION`, `TENSOR_PARALLEL_SIZE`... vào `.env`:
@@ -66,3 +82,8 @@ print(r.choices[0].message.content)
 - [x] Phase 2 — Gateway (LiteLLM: key, log, multi-model, hybrid local+API)
 - [x] Phase 3 — Chat UI (Open WebUI)
 - [x] Phase 4 — Agent tự động hóa build (`agents/` — vòng lặp tool-calling)
+ cd G:\work\llm-platform
+>> powershell -ExecutionPolicy Bypass -File scripts\lan-firewall.ps1
+
+cd G:\work\llm-platform
+powershell -ExecutionPolicy Bypass -File scripts\lan-firewall.ps1

@@ -14,9 +14,20 @@ docker compose up -d
 set -a; source .env; set +a
 echo ""
 echo "✔ Đang tải model & khởi động (LẦN ĐẦU có thể mất nhiều phút do tải weights)."
+echo ""
+echo "  -- Trên máy này --"
 echo "  Chat UI  : http://localhost:${WEBUI_PORT:-3000}"
 echo "  Gateway  : http://localhost:${LITELLM_PORT:-4000}  (dùng LITELLM_MASTER_KEY)"
-echo "  vLLM API : http://localhost:${VLLM_PORT:-8000}/v1"
+echo "  vLLM API : http://localhost:${VLLM_PORT:-8000}/v1  (localhost-only, xem VLLM_BIND)"
+
+if [[ -n "${LAN_HOST:-}" && "${LAN_HOST}" != "localhost" ]]; then
+  echo ""
+  echo "  -- Từ máy khác trong LAN --"
+  echo "  Chat UI  : http://${LAN_HOST}:${WEBUI_PORT:-3000}"
+  echo "  Gateway  : http://${LAN_HOST}:${LITELLM_PORT:-4000}/v1"
+  echo "  (Chưa vào được? Firewall chưa mở → xem docs/lan-access.md)"
+fi
+
 echo ""
 echo "  Xem log tải model : docker compose logs -f vllm"
 echo "  Kiểm tra sức khỏe : make health"

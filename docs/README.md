@@ -6,6 +6,7 @@ bám sát phần cứng thực tế (RTX 3060 12GB dev / server GPU 24–48GB) v
 
 | Tài liệu | Trả lời câu hỏi | Đọc khi |
 |---|---|---|
+| [architecture.md](architecture.md) | "**Ai làm gì** trong stack này, key nào dùng ở đâu, vì sao vLLM chết trên máy tôi?" | **Đọc đầu tiên.** Trước khi sửa `docker-compose.yml` / `litellm.yaml` / `.env`, hoặc khi container `vllm` báo Error. Có mục cạm bẫy WSL2 + Turing + tranh VRAM với Ollama. |
 | [fine-tuning-playbook.md](fine-tuning-playbook.md) | "Có những **phương pháp** tinh chỉnh nào, làm được gì, khả thi tới đâu trên phần cứng của tôi?" | Muốn nắm toàn bộ phổ: prompt/decoding → RAG → PEFT (LoRA/QLoRA) → preference (DPO/ORPO) → merge/quant/speculative; kèm bảng VRAM/dữ liệu/công sức và lộ trình. |
 | [multitask-strategy.md](multitask-strategy.md) | "Muốn phục vụ **nhiều tác vụ** thì train theo hướng nào / dùng **pattern** nào?" | Cần chọn kiến trúc đa-task: 1 generalist vs N specialist, multi-LoRA serving vs merged model vs RAG/route; kèm khung quyết định + cờ vLLM/LiteLLM cụ thể. |
 

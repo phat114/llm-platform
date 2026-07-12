@@ -22,6 +22,13 @@ Cờ:
 from __future__ import annotations
 import argparse
 import os
+import sys
+
+# Console Windows mặc định là cp1252 → mọi output tiếng Việt của agent sẽ ném
+# UnicodeEncodeError. Ép UTF-8 trước khi in bất cứ thứ gì.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
 
 from openai import AsyncOpenAI, OpenAI
 from agents import (
@@ -34,6 +41,7 @@ from agents import (
 
 import tools
 import router
+import toolfix
 from skills import SKILLS
 
 
@@ -70,7 +78,9 @@ def main() -> None:
 
     base_url = os.environ.get("GATEWAY_URL", "http://localhost:4000/v1")
     api_key = os.environ.get("LITELLM_MASTER_KEY", "sk-change-me-please")
-    aclient = AsyncOpenAI(base_url=base_url, api_key=api_key)   # cho Agents SDK (async)
+    # toolfix.wrap: model 3B trả tool-call dạng text ```json thay vì chuẩn hermes → vá lại
+    # thành tool_calls, nếu không agent sẽ không bao giờ gọi tool. Xem toolfix.py.
+    aclient = toolfix.wrap(AsyncOpenAI(base_url=base_url, api_key=api_key))  # Agents SDK (async)
     sclient = OpenAI(base_url=base_url, api_key=api_key)        # cho router (1-shot, sync)
 
     # 1) Chọn skill: ép bằng --skill, hoặc để router (chính brain) phân loại.

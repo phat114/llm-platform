@@ -1,0 +1,111 @@
+# LLM Platform — vLLM (serving) + LiteLLM (gateway) + Open WebUI (chat)
+# Chạy trên server Ubuntu có GPU NVIDIA + nvidia-container-toolkit.
+# Khởi động: bash scripts/start.sh  (hoặc: make up)
+
+services:
+  # ---------- Layer 1: Serving engine ----------
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: vllm
+    restart: unless-stopped
+    # Entrypoint tự lắp ráp tham số từ .env (xử lý quantization tùy chọn)
+    entrypoint: ["/bin/bash", "/scripts/vllm-entrypoint.sh"]
+    # BẪY: env_file nạp TOÀN BỘ .env → thêm/sửa BẤT KỲ biến nào trong .env (kể cả biến
+    # chẳng liên quan như POSTGRES_PASSWORD) cũng đổi config hash của container này
+    # → compose recreate vllm → TẢI LẠI MODEL (vài phút). Đừng hoảng, không phải lỗi.
+    env_file: .env
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - ./scripts:/scripts:ro
+      - hf-cache:/root/.cache/huggingface   # cache model, tải 1 lần
+      - ./training/adapters:/adapters:ro    # LoRA adapter cho multi-LoRA serving (Bước 2)
+      - ./training/models:/models:ro        # (tùy chọn) model đã merge/re-quant (đường B)
+    ports:
+      # CHỈ localhost. vLLM là engine thô — client LAN phải đi qua gateway (:4000)
+      # để còn được master-key + retry + fallback. Muốn lộ ra LAN: đổi VLLM_BIND=0.0.0.0.
+      - "${VLLM_BIND:-127.0.0.1}:${VLLM_PORT:-8000}:8000"
+    ipc: host                                # cần cho tensor-parallel
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 900s                     # lần đầu tải model có thể lâu
+
+  # ---------- Layer 2: Gateway / Platform ----------
+  # DB của gateway. BẮT BUỘC nếu muốn dùng admin UI (:4000/ui) và virtual key —
+  # LiteLLM lưu user/key/spend ở đây. Không có DB thì mọi lần login đều lỗi
+  # "Authentication Error, Not connected to DB!".
+  # KHÔNG publish port: chỉ litellm gọi tới, qua mạng nội bộ của compose.
+  postgres:
+    image: postgres:16-alpine
+    container_name: litellm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD chưa đặt trong .env}
+      POSTGRES_DB: litellm
+    volumes:
+      - litellm-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: litellm
+    restart: unless-stopped
+    depends_on:
+      vllm:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy   # litellm chạy prisma migrate lúc khởi động → DB phải sẵn sàng
+    env_file: .env
+    volumes:
+      - ./config/litellm.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    ports:
+      # Ra LAN (BIND_ADDR=0.0.0.0). Bảo vệ bằng LITELLM_MASTER_KEY.
+      - "${BIND_ADDR:-0.0.0.0}:${LITELLM_PORT:-4000}:4000"
+
+  # ---------- Layer 3: Chat UI ----------
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+    depends_on:
+      - litellm
+    environment:
+      OPENAI_API_BASE_URL: http://litellm:4000/v1
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY}
+      WEBUI_AUTH: ${WEBUI_AUTH:-true}
+      # Tắt Ollama: GPU 6GB chỉ đủ cho MỘT engine. vLLM đã giữ ~4.8GB (KV cache
+      # preallocate) → Ollama load model là hết VRAM ("requires more system
+      # memory than is available"). Tắt để model Ollama không hiện trong dropdown
+      # và không chọn nhầm. Muốn dùng Ollama thì phải `make down` vLLM trước.
+      ENABLE_OLLAMA_API: "false"
+      # URL người dùng LAN gõ vào. Open WebUI dùng nó để sinh link tuyệt đối
+      # (share chat, OAuth redirect, PWA manifest) — thiếu thì link trỏ về "localhost"
+      # và máy khác bấm vào sẽ hỏng.
+      WEBUI_URL: http://${LAN_HOST:-localhost}:${WEBUI_PORT:-3000}
+    volumes:
+      - open-webui:/app/backend/data
+    ports:
+      # Ra LAN (BIND_ADDR=0.0.0.0). Bảo vệ bằng WEBUI_AUTH=true (bắt đăng nhập).
+      - "${BIND_ADDR:-0.0.0.0}:${WEBUI_PORT:-3000}:8080"
+
+volumes:
+  hf-cache:
+  open-webui:
+  litellm-db:
