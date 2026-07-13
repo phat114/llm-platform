@@ -108,11 +108,14 @@ def search_codebase(query: str) -> str:
         query: Nội dung cần tìm (mô tả chức năng, tên hàm, khái niệm...).
     """
     print(f"  → search_codebase({query!r})")
+    # rag.py import fastembed/chromadb LAZY BÊN TRONG search() → phải bọc cả lời gọi,
+    # không chỉ `import rag`. Nếu chỉ bọc import, model sẽ nhận "An error occurred...
+    # No module named 'chromadb'" (không hành động được) thay vì hướng dẫn cài bên dưới.
     try:
         import rag
+        hits = rag.search(query, RAG_TOP_K)
     except ImportError:
         return ("RAG chưa cài. Cần: pip install fastembed chromadb, rồi index: python rag.py index")
-    hits = rag.search(query, RAG_TOP_K)
     if not hits:
         return "(không tìm thấy — đã index chưa? chạy: python rag.py index)"
     return "\n\n".join(

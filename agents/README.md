@@ -8,6 +8,10 @@ model route. Một **router** (dùng chính `brain`) chọn skill phù hợp cho
 Thêm một tác vụ mới = thêm **một Skill** trong `skills.py` — **KHÔNG train lại gì**. Đây là cách
 "phủ đa task không-train" trước khi phải đụng tới LoRA.
 
+> **Test tay tool/skill: [docs/testing.md](../docs/testing.md)** — gọi tay từng tool bằng
+> `python trycall.py` (không cần model/GPU), kiểm cổng bảo mật `_safe_path`, xem đúng schema mà model
+> nhìn thấy, rồi mới chạy agent thật.
+
 ```
 task ──► router.choose_skill (brain, structured output)
             │  chọn skill theo mô tả
